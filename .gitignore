@@ -1,0 +1,11 @@
+# Firebase service account — NEVER commit this
+oriental-store-4b6e4-firebase-adminsdk-fbsvc-1a59d803a0.json
+*-firebase-adminsdk-*.json
+
+# Node
+node_modules/
+package-lock.json
+
+# Temp files
+_transform.py
+_dash_transform.py
