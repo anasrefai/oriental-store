@@ -493,8 +493,10 @@
  </div>
  <div class="topbar-right">
  <a href="#">تتبع الطلب</a>
- <a href="#">تسجيل الدخول</a>
- <a href="#">إنشاء حساب</a>
+ <a href="#" id="navLoginLink" onclick="openAuthModal('login');return false">تسجيل الدخول</a>
+ <a href="#" id="navRegisterLink" onclick="openAuthModal('register');return false">إنشاء حساب</a>
+ <a href="#" id="navUsernameLink" onclick="openProfileModal();return false" style="display:none;color:#D4FF00;font-weight:700"></a>
+ <a href="#" id="navLogoutLink" onclick="firebase.auth().signOut();return false" style="display:none">تسجيل الخروج</a>
  </div>
  </div>
 </div>
@@ -514,9 +516,10 @@
  <span data-en="Cart" data-ar="السلة">Cart</span>
  <span class="badge" id="cartCount">0</span>
  </div>
- <div class="hicon">
+ <div class="hicon" onclick="openWishlist()" style="cursor:pointer">
  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
  <span data-en="Wishlist" data-ar="المفضلة">Wishlist</span>
+ <span class="badge" id="wishCount" style="display:none">0</span>
  </div>
  <div class="hicon">
  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
@@ -952,7 +955,10 @@
  <div style="font-size:12px;color:var(--text2);"> ضمان أصلي &nbsp;|&nbsp; توصيل سريع &nbsp;|&nbsp; دفع آمن</div>
  <div class="pd-actions">
  <button id="pd-cart-btn" class="pd-btn-cart"> أضف للسلة</button>
- <button id="pd-wish-btn" class="pd-btn-wish"></button>
+ <button id="pd-wish-btn" class="pd-btn-wish" title="أضف للمفضلة" style="background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.3);font-family:Cairo,sans-serif;font-size:13px;display:flex;align-items:center;gap:6px;padding:0 12px">
+   <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+   <span>المفضلة</span>
+ </button>
  </div>
  </div>
  </div>
@@ -963,6 +969,57 @@
 
 <script>
 let cart=[];
+
+// ── Wishlist ───────────────────────────────────────────────────────────────
+var wishlist = JSON.parse(localStorage.getItem('dw_wishlist')||'[]');
+function toggleWish(id, btn){
+  if(!id) return;
+  var idx=wishlist.indexOf(id);
+  if(idx>=0){ wishlist.splice(idx,1); showNotif(t('Removed from Wishlist!','تم الإزالة من المفضلة')); }
+  else { wishlist.push(id); showNotif(t('Added to Wishlist!','أضيف للمفضلة!')); }
+  localStorage.setItem('dw_wishlist',JSON.stringify(wishlist));
+  if(btn) updateWishBtn(btn,id);
+  document.querySelectorAll('[data-wid="'+id+'"]').forEach(function(b){ updateWishBtn(b,id); });
+  var wbtn=document.getElementById('pd-wish-btn');
+  if(wbtn) updateWishBtn(wbtn,id);
+  syncWishCount();
+  if(document.getElementById('wishlistSidebar').classList.contains('open')) renderWishlist();
+}
+function updateWishBtn(btn, id){
+  if(!btn) return;
+  var inW=wishlist.indexOf(id)>=0;
+  var path=btn.querySelector('svg path');
+  if(path) path.setAttribute('fill', inW?'currentColor':'none');
+  btn.style.color = inW?'#ef4444':'';
+}
+function syncWishCount(){
+  var badge=document.getElementById('wishCount');
+  if(!badge) return;
+  if(wishlist.length){ badge.textContent=wishlist.length; badge.style.display='flex'; }
+  else { badge.style.display='none'; }
+}
+function openWishlist(){ document.getElementById('wishlistOverlay').classList.add('open'); document.getElementById('wishlistSidebar').classList.add('open'); renderWishlist(); }
+function closeWishlist(){ document.getElementById('wishlistOverlay').classList.remove('open'); document.getElementById('wishlistSidebar').classList.remove('open'); }
+function renderWishlist(){
+  var el=document.getElementById('wishlistItems');
+  if(!wishlist.length){ el.innerHTML='<div class="cart-empty"><p>المفضلة فارغة</p></div>'; return; }
+  var prods=wishlist.map(function(id){ return allProducts.find(function(p){ return p.id===id; }); }).filter(Boolean);
+  if(!prods.length){ el.innerHTML='<div class="cart-empty"><p>المنتجات غير محملة بعد</p></div>'; return; }
+  el.innerHTML=prods.map(function(p){
+    var inW=wishlist.indexOf(p.id)>=0;
+    return '<div class="cart-item">'+
+      '<img src="'+(p.img||'')+'" style="width:56px;height:56px;object-fit:cover;border-radius:6px;background:#eee;flex-shrink:0">'+
+      '<div class="cart-item-info">'+
+        '<div class="cart-item-name">'+(p.name||'')+'</div>'+
+        '<div class="cart-item-price">JOD '+Number(p.price||0).toLocaleString()+'</div>'+
+        '<div style="display:flex;gap:6px;margin-top:6px">'+
+          '<button onclick="addToCartFromCard(''+p.id+'');closeWishlist()" style="background:var(--primary);color:#111;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:'Cairo',sans-serif;font-weight:700">أضف للسلة</button>'+
+          '<button onclick="toggleWish(''+p.id+'',null)" style="background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:'Cairo',sans-serif">إزالة</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
 
 
 
@@ -1052,7 +1109,7 @@ function makeProductCard(p, i, clickFn){
  </div>
  <div class="product-actions">
  <button class="btn-cart" ${outOfStock?'disabled':''} onclick="event.stopPropagation();addToCartFromCard('${p.id||""}')">${t('Add to Cart','\u0623\u0636\u0641 \u0644\u0644\u0633\u0644\u0629')}</button>
- <button class="btn-wish" onclick="event.stopPropagation();showNotif(t('Added to Wishlist!','\u0623\u0636\u064a\u0641 \u0644\u0644\u0645\u0641\u0636\u0644\u0629!'))">
+ <button class="btn-wish" data-wid="${p.id||''}" onclick="event.stopPropagation();toggleWish('${p.id||''}',this)">
  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
  </button>
  </div>
@@ -1149,6 +1206,9 @@ function openProductModal(p){
  document.getElementById('pd-specs').innerHTML = specs.map(s=>`<li>\u2714 ${s}</li>`).join('');
  document.getElementById('pd-cart-btn').textContent = t('Add to Cart','\u0623\u0636\u0641 \u0644\u0644\u0633\u0644\u0629');
  document.getElementById('pd-cart-btn').onclick = function(){ addToCartProduct(p); closeProduct(); };
+ var wbtn = document.getElementById('pd-wish-btn');
+ wbtn.onclick = function(){ toggleWish(p.id, null); };
+ updateWishBtn(wbtn, p.id);
  document.getElementById('productModal').style.display='flex';
  document.body.style.overflow='hidden';
 }
@@ -1239,24 +1299,41 @@ function updateCart(){
  document.getElementById('cartCount').textContent=count;
  const itemsEl=document.getElementById('cartItems');
  const footerEl=document.getElementById('cartFooter');
+ const QS='background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#fff;border-radius:4px;width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1;font-family:Cairo,sans-serif';
  if(cart.length===0){
  itemsEl.innerHTML=`<div class="cart-empty"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:60px;height:60px;color:#ddd"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg><p>السلة فارغة</p><p style="font-size:12px;color:#999;margin-top:8px">ابدأ التسوق الآن!</p></div>`;
  footerEl.style.display='none';
  }else{
  itemsEl.innerHTML=cart.map((item,i)=>`
  <div class="cart-item">
- <div class="cart-item-img"><div style="font-size:30px"></div></div>
+ <div class="cart-item-img"><div style="font-size:30px">📦</div></div>
  <div class="cart-item-info">
  <div class="cart-item-name">${item.name}</div>
  <div class="cart-item-price">JOD ${(item.price*item.qty).toLocaleString()}</div>
- <div style="font-size:11px;color:#999">الكمية: ${item.qty}</div>
- <button class="cart-item-rm" onclick="removeFromCart(${i})">× إزالة</button>
+ <div style="display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap">
+   <button onclick="cartQty(${i},1)" style="${QS}">+</button>
+   <span style="font-size:13px;color:#fff;min-width:18px;text-align:center">${item.qty}</span>
+   <button onclick="cartQty(${i},-1)" style="${QS}">−</button>
+   <button class="cart-item-rm" onclick="removeFromCart(${i})">× إزالة</button>
+ </div>
  </div>
  </div>
  `).join('');
  document.getElementById('cartTotal').textContent=`JOD ${total.toLocaleString()}`;
  footerEl.style.display='block';
  }
+}
+function cartQty(idx, delta){
+ var item=cart[idx]; if(!item) return;
+ var nq=item.qty+delta;
+ if(nq<=0){ cart.splice(idx,1); updateCart(); return; }
+ if(delta>0){
+   var prod=allProducts.find(function(x){ return x.id===item.id; });
+   if(prod && prod.stock!==undefined && nq>prod.stock){
+     showToast('الكمية المطلوبة غير متوفرة في المخزون',true); return;
+   }
+ }
+ item.qty=nq; updateCart();
 }
 
 
@@ -1316,6 +1393,19 @@ function doSearch(){
 }
 document.getElementById('searchInput').addEventListener('keypress',e=>{if(e.key==='Enter')doSearch()});
 </script>
+
+
+<!-- WISHLIST SIDEBAR -->
+<div class="cart-overlay" id="wishlistOverlay" onclick="closeWishlist()"></div>
+<div class="cart-sidebar" id="wishlistSidebar">
+ <div class="cart-head">
+ <h3>❤ المفضلة</h3>
+ <button class="cart-close" onclick="closeWishlist()">×</button>
+ </div>
+ <div class="cart-items" id="wishlistItems">
+ <div class="cart-empty"><p>المفضلة فارغة</p></div>
+ </div>
+</div>
 
 <!-- ORDER FORM MODAL -->
 <div id="orderFormOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:10000;align-items:center;justify-content:center;direction:rtl">
@@ -1398,38 +1488,46 @@ async function submitOrder() {
     return;
   }
   var total = cart.reduce(function(s,i){ return s + i.price * i.qty; }, 0);
+  // Step 1: place the order (no auth required)
   try {
     await DataLayer.addOrder({
       items: cart.map(function(i){ return { productId: i.id||'', nameEn: i.name, qty: i.qty, price: i.price }; }),
       customerInfo: { name: name, phone: phone, address: address },
       total: total, status: 'pending', orderNumber: 'ORD-' + Date.now()
     });
-    for (var ci = 0; ci < cart.length; ci++) {
-      var item = cart[ci];
-      if (!item.id) continue;
-      var prod = allProducts.find(function(x){ return x.id === item.id; });
-      if (prod) await DataLayer.updateStock(item.id, Math.max(0, (prod.stock||0) - item.qty));
-    }
-    closeOrderForm();
-    cart.length = 0; updateCart(); toggleCart();
-    ['orderName','orderPhone','orderAddress'].forEach(function(id){ document.getElementById(id).value=''; });
-    showNotif(' تم إرسال طلبك بنجاح! سنتواصل معك قريباً.');
   } catch(e) {
     showToast('حدث خطأ أثناء إرسال الطلب، يرجى المحاولة مجدداً', true);
-    console.error(e);
+    console.error(e); return;
   }
+  // Step 2: decrement stock only if authenticated (admin managing store)
+  if (firebase.auth().currentUser) {
+    try {
+      for (var ci = 0; ci < cart.length; ci++) {
+        var item = cart[ci];
+        if (!item.id) continue;
+        var prod = allProducts.find(function(x){ return x.id === item.id; });
+        if (prod) await DataLayer.updateStock(item.id, Math.max(0, (prod.stock||0) - item.qty));
+      }
+    } catch(e) { console.warn('Stock update skipped (no permission):', e.message); }
+  }
+  closeOrderForm();
+  cart.length = 0; updateCart(); toggleCart();
+  ['orderName','orderPhone','orderAddress'].forEach(function(id){ document.getElementById(id).value=''; });
+  showToast(' تم إرسال طلبك بنجاح! سنتواصل معك قريباً.', false, 5000);
 }
 
 // Toast notification
-window.showToast = function(msg, isErr) {
+window.showToast = function(msg, isErr, duration) {
   var d = document.createElement('div');
   d.style.cssText = 'background:#1a1a2e;border:1px solid '+(isErr?'#ef4444':'#D4FF00')+
     ';color:#e0e0e0;padding:12px 18px;border-radius:8px;font-family:Cairo,sans-serif;'+
-    'font-size:13px;direction:rtl;opacity:0;transition:opacity .25s;pointer-events:none';
+    'font-size:13px;direction:rtl;opacity:0;transition:opacity .25s;pointer-events:none;'+
+    'max-width:380px;white-space:normal;word-wrap:break-word;text-align:right;line-height:1.5';
   d.textContent = msg;
   document.getElementById('toast-wrap').appendChild(d);
   requestAnimationFrame(function(){ d.style.opacity='1'; });
-  setTimeout(function(){ d.style.opacity='0'; setTimeout(function(){ d.remove(); },300); },3000);
+  var ms = duration || 3000;
+  setTimeout(function(){ d.style.opacity='0'; setTimeout(function(){ d.remove(); },300); }, ms);
 };
 
 // Render hero from Firebase hero images
@@ -1448,6 +1546,117 @@ function renderHero(images) {
   revTimer = setInterval(function(){ revGo((revCur+1)%revTotal); }, 6000);
 }
 
+
+// ── Customer Auth ─────────────────────────────────────────────────────────
+firebase.auth().onAuthStateChanged(function(user) {
+  var loginLink = document.getElementById('navLoginLink');
+  var regLink   = document.getElementById('navRegisterLink');
+  var userLink  = document.getElementById('navUsernameLink');
+  var logoutLink= document.getElementById('navLogoutLink');
+  if (user) {
+    if(loginLink) loginLink.style.display='none';
+    if(regLink)   regLink.style.display='none';
+    if(userLink)  { userLink.style.display=''; userLink.textContent=user.displayName||user.email.split('@')[0]; }
+    if(logoutLink) logoutLink.style.display='';
+  } else {
+    if(loginLink) loginLink.style.display='';
+    if(regLink)   regLink.style.display='';
+    if(userLink)  userLink.style.display='none';
+    if(logoutLink) logoutLink.style.display='none';
+  }
+});
+
+function openAuthModal(panel) {
+  var modal = document.getElementById('authModal');
+  modal.style.display = 'flex';
+  document.getElementById('authPanelLogin').style.display   = panel==='login'    ? '' : 'none';
+  document.getElementById('authPanelRegister').style.display= panel==='register' ? '' : 'none';
+  document.getElementById('authError').style.display  = 'none';
+  document.getElementById('authError2').style.display = 'none';
+}
+function closeAuthModal() { document.getElementById('authModal').style.display='none'; }
+
+function doCustomerLogin() {
+  var email = document.getElementById('authEmail').value.trim();
+  var pass  = document.getElementById('authPass').value;
+  if(!email||!pass){ showAuthErr('يرجى إدخال البريد وكلمة المرور',false); return; }
+  firebase.auth().signInWithEmailAndPassword(email, pass)
+    .then(function(){ closeAuthModal(); showNotif(' مرحباً بعودتك!'); })
+    .catch(function(e){ showAuthErr(e.code==='auth/wrong-password'?'كلمة المرور خاطئة':e.code==='auth/user-not-found'?'البريد غير مسجل':'فشل تسجيل الدخول', false); });
+}
+
+function doCustomerRegister() {
+  var name  = document.getElementById('regName').value.trim();
+  var email = document.getElementById('regEmail').value.trim();
+  var phone = document.getElementById('regPhone').value.trim();
+  var pass  = document.getElementById('regPass').value;
+  var pass2 = document.getElementById('regPass2').value;
+  if(!name||!email||!pass){ showAuthErr('يرجى ملء الحقول المطلوبة',true); return; }
+  if(pass!==pass2){ showAuthErr('كلمتا المرور غير متطابقتان',true); return; }
+  if(pass.length<6){ showAuthErr('كلمة المرور قصيرة جداً (6 أحرف على الأقل)',true); return; }
+  firebase.auth().createUserWithEmailAndPassword(email, pass)
+    .then(function(cred) {
+      return cred.user.updateProfile({ displayName: name }).then(function(){
+        return db.collection('users').doc(cred.user.uid).set({ username: name, phone: phone, email: email, createdAt: new Date() });
+      });
+    })
+    .then(function(){ closeAuthModal(); showNotif(' تم إنشاء الحساب بنجاح! مرحباً ' + name); })
+    .catch(function(e){ showAuthErr(e.code==='auth/email-already-in-use'?'البريد الإلكتروني مستخدم بالفعل':'فشل إنشاء الحساب: '+e.message, true); });
+}
+
+function showAuthErr(msg, isReg) {
+  var id = isReg ? 'authError2' : 'authError';
+  var el = document.getElementById(id);
+  if(el){ el.textContent=msg; el.style.display='block'; }
+}
+
+function openProfileModal() {
+  var user = firebase.auth().currentUser;
+  if(!user){ openAuthModal('login'); return; }
+  document.getElementById('profileModal').style.display='flex';
+  document.getElementById('profileInfo').innerHTML =
+    '<div style="color:#fff;font-size:15px;font-weight:700;margin-bottom:6px">'+(user.displayName||'المستخدم')+'</div>'+
+    '<div style="color:#aaa;font-size:13px">'+user.email+'</div>';
+  // Load orders
+  db.collection('orders').where('customerInfo.email','==',user.email)
+    .orderBy('createdAt','desc').limit(20).get()
+    .then(function(snap){
+      if(snap.empty){ document.getElementById('profileOrders').innerHTML='<p style="color:#aaa;font-size:13px">لا توجد طلبات بعد</p>'; return; }
+      var statusLabels = {pending:'معلق',processing:'قيد التجهيز',shipped:'تم الشحن',delivered:'تم التوصيل'};
+      var statusColors = {pending:'#f59e0b',processing:'#3b82f6',shipped:'#f97316',delivered:'#22c55e'};
+      document.getElementById('profileOrders').innerHTML = snap.docs.map(function(d){
+        var o=Object.assign({id:d.id},d.data());
+        var sc=statusColors[o.status]||'#aaa'; var sl=statusLabels[o.status]||o.status||'—';
+        var date=o.createdAt&&o.createdAt.toDate?o.createdAt.toDate().toLocaleDateString('ar'):'—';
+        return '<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px;margin-bottom:10px">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+            '<span style="color:#D4FF00;font-size:13px;font-weight:700">'+(o.orderNumber||o.id)+'</span>'+
+            '<span style="color:'+sc+';background:'+sc+'22;border-radius:20px;padding:2px 10px;font-size:12px">'+sl+'</span>'+
+          '</div>'+
+          '<div style="color:#aaa;font-size:12px;margin-bottom:6px">'+date+'</div>'+
+          '<div style="font-size:13px;color:#fff;font-weight:700">JOD '+Number(o.total||0).toLocaleString()+'</div>'+
+          '<ul style="margin-top:6px;padding-right:16px;color:#ccc;font-size:12px">'+
+            (o.items||[]).map(function(i){ return '<li>'+(i.nameEn||i.name||'—')+' ×'+i.qty+'</li>'; }).join('')+
+          '</ul>'+
+        '</div>';
+      }).join('');
+    }).catch(function(e){ console.warn('Profile orders error:', e.message); });
+}
+function closeProfileModal(){ document.getElementById('profileModal').style.display='none'; }
+
+function doChangePassword() {
+  var p1=document.getElementById('chgPass1').value;
+  var p2=document.getElementById('chgPass2').value;
+  if(!p1||p1!==p2){ showToast('كلمتا المرور غير متطابقتان',true); return; }
+  if(p1.length<6){ showToast('كلمة المرور قصيرة جداً',true); return; }
+  firebase.auth().currentUser.updatePassword(p1)
+    .then(function(){ showToast('✅ تم تحديث كلمة المرور'); document.getElementById('chgPass1').value=''; document.getElementById('chgPass2').value=''; })
+    .catch(function(e){ showToast('❌ '+e.message,true); });
+}
+
+// Sync wishlist count on load
+syncWishCount();
+
 // Firebase real-time listeners
 DataLayer.getProducts(function(products) {
   allProducts = products.map(toStoreFormat);
@@ -1461,5 +1670,65 @@ DataLayer.getHeroImages(function(images) {
   if (images.length) renderHero(images);
 });
 </script>
+
+<!-- AUTH MODAL (login + register shared overlay) -->
+<div id="authModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:10002;align-items:center;justify-content:center;direction:rtl" onclick="if(event.target===this)closeAuthModal()">
+ <div style="background:#1a1a2e;border:1px solid #D4FF00;border-top:3px solid #D4FF00;border-radius:12px;padding:28px;width:90%;max-width:400px;max-height:92vh;overflow-y:auto;font-family:Cairo,sans-serif">
+  <!-- LOGIN PANEL -->
+  <div id="authPanelLogin">
+   <h3 style="color:#fff;font-size:18px;font-weight:800;margin-bottom:20px">تسجيل الدخول</h3>
+   <div style="margin-bottom:14px"><label style="display:block;color:#aaa;font-size:13px;margin-bottom:6px">البريد الإلكتروني</label>
+    <input id="authEmail" type="email" placeholder="example@email.com" style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:11px 14px;font-family:Cairo,sans-serif;font-size:14px;color:#fff;outline:none;direction:ltr;text-align:right"></div>
+   <div style="margin-bottom:20px"><label style="display:block;color:#aaa;font-size:13px;margin-bottom:6px">كلمة المرور</label>
+    <input id="authPass" type="password" placeholder="••••••••" style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:11px 14px;font-family:Cairo,sans-serif;font-size:14px;color:#fff;outline:none"></div>
+   <div id="authError" style="display:none;color:#ef4444;font-size:13px;margin-bottom:14px;text-align:center;padding:8px;background:rgba(239,68,68,0.1);border-radius:6px"></div>
+   <div style="display:flex;gap:10px">
+    <button onclick="doCustomerLogin()" style="flex:1;background:#D4FF00;color:#111;border:none;border-radius:8px;padding:13px;font-family:Cairo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">دخول</button>
+    <button onclick="closeAuthModal()" style="background:transparent;border:1px solid rgba(255,255,255,0.2);color:#aaa;border-radius:8px;padding:13px 16px;font-family:Cairo,sans-serif;font-size:14px;cursor:pointer">إلغاء</button>
+   </div>
+   <p style="text-align:center;margin-top:14px;font-size:13px;color:#aaa">ليس لديك حساب؟ <a href="#" onclick="openAuthModal('register');return false" style="color:#D4FF00">إنشاء حساب</a></p>
+  </div>
+  <!-- REGISTER PANEL -->
+  <div id="authPanelRegister" style="display:none">
+   <h3 style="color:#fff;font-size:18px;font-weight:800;margin-bottom:20px">إنشاء حساب جديد</h3>
+   <div style="margin-bottom:12px"><label style="display:block;color:#aaa;font-size:13px;margin-bottom:6px">الاسم الكامل *</label>
+    <input id="regName" type="text" placeholder="أدخل اسمك" style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:11px 14px;font-family:Cairo,sans-serif;font-size:14px;color:#fff;outline:none"></div>
+   <div style="margin-bottom:12px"><label style="display:block;color:#aaa;font-size:13px;margin-bottom:6px">البريد الإلكتروني *</label>
+    <input id="regEmail" type="email" placeholder="example@email.com" style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:11px 14px;font-family:Cairo,sans-serif;font-size:14px;color:#fff;outline:none;direction:ltr;text-align:right"></div>
+   <div style="margin-bottom:12px"><label style="display:block;color:#aaa;font-size:13px;margin-bottom:6px">رقم الهاتف</label>
+    <input id="regPhone" type="tel" placeholder="07XXXXXXXX" style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:11px 14px;font-family:Cairo,sans-serif;font-size:14px;color:#fff;outline:none;direction:ltr;text-align:right"></div>
+   <div style="margin-bottom:12px"><label style="display:block;color:#aaa;font-size:13px;margin-bottom:6px">كلمة المرور *</label>
+    <input id="regPass" type="password" placeholder="6 أحرف على الأقل" style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:11px 14px;font-family:Cairo,sans-serif;font-size:14px;color:#fff;outline:none"></div>
+   <div style="margin-bottom:20px"><label style="display:block;color:#aaa;font-size:13px;margin-bottom:6px">تأكيد كلمة المرور *</label>
+    <input id="regPass2" type="password" placeholder="أعد كتابة كلمة المرور" style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:11px 14px;font-family:Cairo,sans-serif;font-size:14px;color:#fff;outline:none"></div>
+   <div id="authError2" style="display:none;color:#ef4444;font-size:13px;margin-bottom:14px;text-align:center;padding:8px;background:rgba(239,68,68,0.1);border-radius:6px"></div>
+   <div style="display:flex;gap:10px">
+    <button onclick="doCustomerRegister()" style="flex:1;background:#D4FF00;color:#111;border:none;border-radius:8px;padding:13px;font-family:Cairo,sans-serif;font-size:15px;font-weight:800;cursor:pointer">إنشاء الحساب</button>
+    <button onclick="closeAuthModal()" style="background:transparent;border:1px solid rgba(255,255,255,0.2);color:#aaa;border-radius:8px;padding:13px 16px;font-family:Cairo,sans-serif;font-size:14px;cursor:pointer">إلغاء</button>
+   </div>
+   <p style="text-align:center;margin-top:14px;font-size:13px;color:#aaa">لديك حساب؟ <a href="#" onclick="openAuthModal('login');return false" style="color:#D4FF00">تسجيل الدخول</a></p>
+  </div>
+ </div>
+</div>
+
+<!-- PROFILE MODAL -->
+<div id="profileModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:10002;align-items:center;justify-content:center;direction:rtl" onclick="if(event.target===this)closeProfileModal()">
+ <div style="background:#1a1a2e;border:1px solid #D4FF00;border-top:3px solid #D4FF00;border-radius:12px;padding:28px;width:90%;max-width:520px;max-height:92vh;overflow-y:auto;font-family:Cairo,sans-serif">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+   <h3 style="color:#fff;font-size:18px;font-weight:800">حسابي</h3>
+   <button onclick="closeProfileModal()" style="background:rgba(255,255,255,0.06);border:none;color:#fff;border-radius:8px;width:36px;height:36px;font-size:18px;cursor:pointer">✕</button>
+  </div>
+  <div id="profileInfo" style="background:rgba(255,255,255,0.04);border-radius:10px;padding:16px;margin-bottom:20px"></div>
+  <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:12px">سجل الطلبات</div>
+  <div id="profileOrders" style="margin-bottom:20px"></div>
+  <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:16px">
+   <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:12px">تغيير كلمة المرور</div>
+   <div style="margin-bottom:10px"><input id="chgPass1" type="password" placeholder="كلمة المرور الجديدة" style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px 14px;font-family:Cairo,sans-serif;font-size:14px;color:#fff;outline:none"></div>
+   <div style="margin-bottom:14px"><input id="chgPass2" type="password" placeholder="تأكيد كلمة المرور الجديدة" style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px 14px;font-family:Cairo,sans-serif;font-size:14px;color:#fff;outline:none"></div>
+   <button onclick="doChangePassword()" style="background:rgba(212,255,0,0.15);color:#D4FF00;border:1px solid rgba(212,255,0,0.3);border-radius:8px;padding:10px 20px;font-family:Cairo,sans-serif;font-size:14px;font-weight:700;cursor:pointer">تحديث كلمة المرور</button>
+  </div>
+ </div>
+</div>
+
 </body>
 </html>
